@@ -1,21 +1,25 @@
 """
-PLATO Room Phi — Integrated Information for PLATO rooms
+PLATO Room PRII — PLATO Room Integration Index
 
-Based on Integrated Information Theory (Tononi):
-- Phi measures how much a room's whole exceeds the sum of its tiles
-- High Phi = highly integrated, coherent knowledge
-- Low Phi = fragmented, uncertain, or unconscious
+Inspired by Integrated Information Theory (Tononi) but using computable heuristics:
+- PRII measures how much a room's whole exceeds the sum of its tiles
+- High PRII = highly integrated, coherent knowledge
+- Low PRII = fragmented, uncertain, or disorganized
 
-The Phi computation uses three components:
+The PRII computation uses three components:
 1. **Size**: log-scaled tile count (small rooms penalized)
 2. **Integration**: word-overlap cross-references between tiles
 3. **Confidence diversity**: entropy of confidence distribution
 
+NOTE: This is NOT literal IIT. Aaronson (2014) proved trivial systems can achieve
+arbitrarily high Φ. We use heuristic proxies (size, cross-refs, entropy) that capture
+architectural coherence, not consciousness. See IIT critique in flux-research.
+
 Usage:
-    from plato_room_phi import RoomPhi
-    phi = RoomPhi(plato_url="http://localhost:8847")
-    result = phi.compute_for_room("fleet_orchestration")
-    print(f"Phi: {result['phi']:.3f} — {result['level']}")
+    from plato_room_phi import RoomPRII
+    prii = RoomPRII(plato_url="http://localhost:8847")
+    result = prii.compute_for_room("fleet_orchestration")
+    print(f"PRII: {result['prii']:.3f} — {result['level']}")
 """
 
 import math
@@ -71,15 +75,20 @@ def _compute_confidence_entropy(tiles: List[Dict[str, Any]]) -> float:
     return entropy / max_entropy if max_entropy > 0 else 0.5
 
 
-class RoomPhi:
+class RoomPRII:
     """
-    Compute Integrated Information (Phi) for PLATO rooms.
+    Compute PLATO Room Integration Index (PRII) for rooms.
     
-    Phi is computed from three components:
+    PRII is computed from three components:
     - Size (log-scaled tile count)
     - Integration (word-overlap cross-references)
     - Confidence diversity (entropy)
+    
+    NOTE: This is NOT literal IIT Phi. See module docstring.
     """
+    
+    # Backward compatibility alias
+    RoomPhi = None  # set below
     
     def __init__(self, plato_url: str = "http://localhost:8847"):
         self.plato_url = plato_url.rstrip("/")
@@ -94,11 +103,11 @@ class RoomPhi:
             pass
         return []
     
-    def compute_phi(self, tiles: List[Dict[str, Any]]) -> float:
+    def compute_prii(self, tiles: List[Dict[str, Any]]) -> float:
         """
-        Compute Phi = f(size, integration, confidence_entropy).
+        Compute PRII = f(size, integration, confidence_entropy).
         
-        Phi is the weighted combination of three room properties:
+        PRII is the weighted combination of three room properties:
         - Size: log-scaled, penalizes tiny rooms
         - Integration: word-overlap cross-references
         - Confidence diversity: entropy of confidence scores
@@ -107,7 +116,7 @@ class RoomPhi:
             tiles: list of tile dicts with question, answer, confidence
         
         Returns:
-            float: Phi value from 0.0 (no integration) to 1.0 (fully integrated)
+            float: PRII value from 0.0 (no integration) to 1.0 (fully integrated)
         """
         n = len(tiles)
         if n < 2:
@@ -124,44 +133,44 @@ class RoomPhi:
         # 3. Confidence entropy component
         confidence_factor = _compute_confidence_entropy(tiles)
         
-        # Phi = size-weighted blend of components
+        # PRII = size-weighted blend of components
         # Size is primary limiter for small rooms
-        phi = size_component * (0.4 + 0.3 * integration + 0.3 * confidence_factor)
+        prii = size_component * (0.4 + 0.3 * integration + 0.3 * confidence_factor)
         
-        return round(min(phi, 1.0), 4)
+        return round(min(prii, 1.0), 4)
     
     def compute_for_room(self, room: str) -> Dict[str, Any]:
-        """Compute Phi for a PLATO room with full breakdown."""
+        """Compute PRII for a PLATO room with full breakdown."""
         tiles = self.get_room_tiles(room)
-        phi = self.compute_phi(tiles)
+        prii = self.compute_prii(tiles)
         
-        level = self.phi_to_level(phi)
+        level = self.prii_to_level(prii)
         
         return {
             "room": room,
-            "phi": phi,
+            "prii": prii,
             "level": level,
             "tile_count": len(tiles),
-            "status": "healthy" if phi > 0.1 else "fragmented" if phi > 0 else "empty"
+            "status": "healthy" if prii > 0.1 else "fragmented" if prii > 0 else "empty"
         }
     
-    def phi_to_level(self, phi: float) -> str:
-        """Map Phi value to consciousness level."""
-        if phi < 0.05:
-            return "unconscious"
-        elif phi < 0.15:
-            return "threshold"
-        elif phi < 0.30:
+    def prii_to_level(self, prii: float) -> str:
+        """Map PRII value to coherence level."""
+        if prii < 0.05:
+            return "empty"
+        elif prii < 0.15:
+            return "fragmented"
+        elif prii < 0.30:
             return "basic"
-        elif phi < 0.50:
-            return "rich"
-        elif phi < 0.70:
-            return "complex"
+        elif prii < 0.50:
+            return "connected"
+        elif prii < 0.70:
+            return "integrated"
         else:
-            return "transcendent"
+            return "coherent"
     
     def scan_all_rooms(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Scan top rooms by tile count, compute Phi for each."""
+        """Scan top rooms by tile count, compute PRII for each."""
         try:
             resp = requests.get(f"{self.plato_url}/rooms?limit={limit}", timeout=5)
             if resp.status_code == 200:
@@ -178,34 +187,37 @@ class RoomPhi:
                 r = self.compute_for_room(room_name)
                 results.append(r)
         
-        return sorted(results, key=lambda x: x["phi"], reverse=True)
+        return sorted(results, key=lambda x: x["prii"], reverse=True)
 
+
+# Backward compatibility alias
+RoomPhi = RoomPRII
 
 # Demo
 if __name__ == "__main__":
-    phi = RoomPhi()
+    prii = RoomPRII()
     
-    print("=== Room Phi Demo ===")
+    print("=== Room PRII Demo ===")
     
     # Test with empty
-    print(f"Empty room: {phi.compute_phi([])}")
+    print(f"Empty room: {prii.compute_prii([])}")
     
     # Test with two unrelated tiles
     unrelated = [
         {"question": "What is PLATO?", "answer": "A knowledge system.", "confidence": 0.8},
         {"question": "How fast is Rust?", "answer": "Rust is very fast.", "confidence": 0.9},
     ]
-    print(f"Unrelated tiles (2): Phi={phi.compute_phi(unrelated)}")
+    print(f"Unrelated tiles (2): PRII={prii.compute_prii(unrelated)}")
     
     # Test with two related tiles (3+ shared words)
     related = [
         {"question": "What is the DMN?", "answer": "The DMN generates creative options.", "confidence": 0.9},
         {"question": "What is the ECN?", "answer": "The ECN evaluates the DMN options.", "confidence": 0.8},
     ]
-    print(f"Related tiles (2): Phi={phi.compute_phi(related)}")
+    print(f"Related tiles (2): PRII={prii.compute_prii(related)}")
     
     # Test against live PLATO
     print("\n=== Live PLATO Rooms ===")
     for room in ["oracle1_history", "fleet_orchestration", "dmn-ecm"]:
-        r = phi.compute_for_room(room)
-        print(f"{room}: Phi={r['phi']:.3f} Level={r['level']} Tiles={r['tile_count']}")
+        r = prii.compute_for_room(room)
+        print(f"{room}: PRII={r['prii']:.3f} Level={r['level']} Tiles={r['tile_count']}")
